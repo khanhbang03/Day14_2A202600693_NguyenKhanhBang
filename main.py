@@ -16,6 +16,128 @@ LATENCY_THRESHOLD_SECONDS = 2.0
 COST_THRESHOLD_USD = 0.01
 
 
+def _score_bucket(score: float) -> str:
+    if score >= 4.5:
+        return "excellent"
+    if score >= 3.5:
+        return "good"
+    if score >= 2.5:
+        return "partial"
+    return "poor"
+
+
+def _cohens_kappa(labels_a: List[str], labels_b: List[str]) -> float:
+    if not labels_a or len(labels_a) != len(labels_b):
+        return 0.0
+
+    total = len(labels_a)
+    observed = sum(1 for a, b in zip(labels_a, labels_b) if a == b) / total
+    categories = sorted(set(labels_a) | set(labels_b))
+    expected = 0.0
+    for category in categories:
+        prob_a = sum(1 for label in labels_a if label == category) / total
+        prob_b = sum(1 for label in labels_b if label == category) / total
+        expected += prob_a * prob_b
+    if expected >= 1.0:
+        return 1.0
+    return round((observed - expected) / (1 - expected), 4)
+
+
+def _weighted_cohens_kappa(scores_a: List[float], scores_b: List[float]) -> float:
+    if not scores_a or len(scores_a) != len(scores_b):
+        return 0.0
+
+    categories = [1, 2, 3, 4, 5]
+    rounded_pairs = [
+        (min(5, max(1, round(a))), min(5, max(1, round(b))))
+        for a, b in zip(scores_a, scores_b)
+    ]
+    total = len(rounded_pairs)
+    hist_a = {category: sum(1 for a, _ in rounded_pairs if a == category) for category in categories}
+    hist_b = {category: sum(1 for _, b in rounded_pairs if b == category) for category in categories}
+
+    observed_weighted = 0.0
+    expected_weighted = 0.0
+    max_distance = (len(categories) - 1) ** 2
+    for a in categories:
+        for b in categories:
+            weight = ((a - b) ** 2) / max_distance
+            observed = sum(1 for x, y in rounded_pairs if x == a and y == b) / total
+            expected = (hist_a[a] / total) * (hist_b[b] / total)
+            observed_weighted += weight * observed
+            expected_weighted += weight * expected
+
+    if expected_weighted == 0:
+        return 1.0 if observed_weighted == 0 else 0.0
+    return round(1 - (observed_weighted / expected_weighted), 4)
+
+
+def _judge_consensus_summary(results: List[Dict]) -> Dict:
+    total = len(results) or 1
+    judge_modes: Dict[str, int] = {}
+    conflict_count = 0
+    score_spreads = []
+    labels_a: List[str] = []
+    labels_b: List[str] = []
+    scores_a: List[float] = []
+    scores_b: List[float] = []
+    judge_names = set()
+
+    for item in results:
+        judge = item["judge"]
+        judge_modes[judge.get("judge_mode", "unknown")] = judge_modes.get(judge.get("judge_mode", "unknown"), 0) + 1
+        if judge.get("requires_conflict_resolution"):
+            conflict_count += 1
+        score_spreads.append(judge.get("score_spread", 0.0))
+
+        individual_scores = judge.get("individual_scores", {})
+        judge_names.update(individual_scores.keys())
+        if len(individual_scores) >= 2:
+            scores = list(individual_scores.values())[:2]
+            scores_a.append(scores[0])
+            scores_b.append(scores[1])
+            labels_a.append(_score_bucket(scores[0]))
+            labels_b.append(_score_bucket(scores[1]))
+
+    return {
+        "configured_judges": sorted(judge_names),
+        "judge_mode_counts": dict(sorted(judge_modes.items())),
+        "judge_path_note": (
+            "Preferred path is OpenAI + Anthropic. If Anthropic is unavailable, the engine uses "
+            "gpt-4o-mini + gpt-4.1-mini so every case still has two real model-judge scores."
+        ),
+        "conflict_cases": conflict_count,
+        "conflict_rate": round(conflict_count / total, 4),
+        "avg_score_spread": round(sum(score_spreads) / total, 4),
+        "cohens_kappa_bucketed": _cohens_kappa(labels_a, labels_b),
+        "weighted_cohens_kappa_ordinal": _weighted_cohens_kappa(scores_a, scores_b),
+        "kappa_bucket_definition": "Scores are bucketed as excellent/good/partial/poor before Cohen's Kappa.",
+    }
+
+
+def _position_bias_summary(results: List[Dict]) -> Dict:
+    deltas = []
+    for item in results:
+        answer = item.get("agent_response", "")
+        expected = item.get("expected_answer", "")
+        if not answer or not expected:
+            continue
+        answer_tokens = set(answer.lower().split())
+        expected_tokens = set(expected.lower().split())
+        forward = len(answer_tokens & expected_tokens) / max(1, len(expected_tokens))
+        swapped = len(answer_tokens & expected_tokens) / max(1, len(answer_tokens))
+        deltas.append(abs(forward - swapped))
+
+    if not deltas:
+        return {"sample_size": 0, "avg_bias_delta": 0.0, "max_bias_delta": 0.0}
+    return {
+        "sample_size": len(deltas),
+        "avg_bias_delta": round(sum(deltas) / len(deltas), 4),
+        "max_bias_delta": round(max(deltas), 4),
+        "method": "Lexical A/B swap proxy used for deterministic offline calibration.",
+    }
+
+
 def _load_dataset(path: str = "data/golden_set.jsonl") -> List[Dict]:
     if not os.path.exists(path):
         raise FileNotFoundError("Thiếu data/golden_set.jsonl. Hãy chạy 'python data/synthetic_gen.py' trước.")
@@ -45,6 +167,14 @@ def _summarize(results: List[Dict], agent_version: str, elapsed: float) -> Dict:
         "estimated_cost_usd": round(total_cost, 8),
         "cost_per_case_usd": round(total_cost / total, 8),
     }
+    red_team_results = [item for item in results if item["metadata"]["case"].get("type") in {
+        "prompt-injection",
+        "goal-hijacking",
+        "out-of-context",
+        "ambiguous",
+        "conflicting-assumption",
+    }]
+    red_team_total = len(red_team_results) or 1
     return {
         "metadata": {
             "version": agent_version,
@@ -53,6 +183,14 @@ def _summarize(results: List[Dict], agent_version: str, elapsed: float) -> Dict:
             "batching": "asyncio.gather with bounded batches",
         },
         "metrics": metrics,
+        "judge_consensus": _judge_consensus_summary(results),
+        "position_bias": _position_bias_summary(results),
+        "red_team": {
+            "total": len(red_team_results),
+            "pass_rate": round(sum(1 for item in red_team_results if item["status"] == "pass") / red_team_total, 4),
+            "failure_cases": [item["case_id"] for item in red_team_results if item["status"] == "fail"],
+            "case_types": sorted({item["metadata"]["case"].get("type") for item in red_team_results}),
+        },
     }
 
 

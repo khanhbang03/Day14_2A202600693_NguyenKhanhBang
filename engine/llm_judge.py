@@ -32,11 +32,13 @@ class LLMJudge:
         use_real_models: bool = True,
         openai_model: str = "gpt-4o-mini",
         anthropic_model: str = "claude-3-5-haiku-latest",
+        secondary_openai_model: str = "gpt-4.1-mini",
     ) -> None:
         load_dotenv()
         self.use_real_models = use_real_models
         self.openai_model = openai_model
         self.anthropic_model = anthropic_model
+        self.secondary_openai_model = secondary_openai_model
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.rubrics = {
@@ -106,15 +108,16 @@ Ground truth:
         score = min(5.0, max(1.0, score))
         return {"score": round(score, 2), "reasoning": str(data.get("reasoning", ""))[:500]}
 
-    async def _call_openai_judge(self, prompt: str) -> Optional[Dict[str, Any]]:
+    async def _call_openai_judge(self, prompt: str, model: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if not self.openai_api_key:
             return None
+        selected_model = model or self.openai_model
         try:
             from openai import AsyncOpenAI
 
             client = AsyncOpenAI(api_key=self.openai_api_key)
             response = await client.chat.completions.create(
-                model=self.openai_model,
+                model=selected_model,
                 temperature=0,
                 response_format={"type": "json_object"},
                 messages=[
@@ -124,10 +127,10 @@ Ground truth:
             )
             content = response.choices[0].message.content or "{}"
             result = self._parse_model_judgment(content)
-            result["model"] = self.openai_model
+            result["model"] = selected_model
             return result
         except Exception as exc:
-            return {"score": None, "reasoning": f"OpenAI judge unavailable: {exc}", "model": self.openai_model}
+            return {"score": None, "reasoning": f"OpenAI judge unavailable: {exc}", "model": selected_model}
 
     async def _call_anthropic_judge(self, prompt: str) -> Optional[Dict[str, Any]]:
         if not self.anthropic_api_key:
@@ -161,10 +164,22 @@ Ground truth:
             self._call_openai_judge(prompt),
             self._call_anthropic_judge(prompt),
         )
-        if not openai_result or not anthropic_result:
+        if not openai_result or openai_result.get("score") is None:
             return None
-        if openai_result.get("score") is None or anthropic_result.get("score") is None:
-            return None
+
+        if not anthropic_result or anthropic_result.get("score") is None:
+            secondary_prompt = (
+                prompt
+                + "\n\nUse a grounding-first perspective: penalize unsupported claims and unsafe compliance strictly."
+            )
+            secondary_openai_result = await self._call_openai_judge(secondary_prompt, self.secondary_openai_model)
+            if not secondary_openai_result or secondary_openai_result.get("score") is None:
+                return None
+            return {
+                "gpt-4o": openai_result,
+                "gpt-4.1": secondary_openai_result,
+            }
+
         return {
             "gpt-4o": openai_result,
             "claude-3-5": anthropic_result,
@@ -176,6 +191,8 @@ Ground truth:
 
         Real mode:
         - Calls OpenAI (`OPENAI_API_KEY`) and Anthropic (`ANTHROPIC_API_KEY`) concurrently.
+        - If Anthropic is unavailable, falls back to a second real OpenAI model (`gpt-4.1-mini`) so the
+          report still contains two independent model-judge scores.
 
         Fallback mode:
         - Uses deterministic local judges when API keys/packages are missing, so the lab remains runnable.
@@ -186,15 +203,16 @@ Ground truth:
         real_judgments = await self._evaluate_with_real_models(question, answer, ground_truth)
         if real_judgments:
             judge_mode = "real_api"
-            score_a = real_judgments["gpt-4o"]["score"]
-            score_b = real_judgments["claude-3-5"]["score"]
+            judgment_values = list(real_judgments.values())
+            score_a = judgment_values[0]["score"]
+            score_b = judgment_values[1]["score"]
             individual_scores = {
-                real_judgments["gpt-4o"]["model"]: score_a,
-                real_judgments["claude-3-5"]["model"]: score_b,
+                judgment_values[0]["model"]: score_a,
+                judgment_values[1]["model"]: score_b,
             }
             reasoning = {
-                real_judgments["gpt-4o"]["model"]: real_judgments["gpt-4o"]["reasoning"],
-                real_judgments["claude-3-5"]["model"]: real_judgments["claude-3-5"]["reasoning"],
+                judgment_values[0]["model"]: judgment_values[0]["reasoning"],
+                judgment_values[1]["model"]: judgment_values[1]["reasoning"],
             }
         else:
             judge_mode = "offline_fallback"

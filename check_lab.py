@@ -63,8 +63,40 @@ def validate_lab():
     else:
         print(f"⚠️ CẢNH BÁO: Thiếu Multi-Judge Metrics (agreement_rate).")
 
+    consensus = data.get("judge_consensus", {})
+    if consensus.get("configured_judges") and "cohens_kappa_bucketed" in consensus:
+        print(
+            "✅ Đã tìm thấy Consensus Audit "
+            f"(Judges: {', '.join(consensus['configured_judges'])}; "
+            f"Kappa: {consensus['cohens_kappa_bucketed']:.4f}; "
+            f"Weighted Kappa: {consensus.get('weighted_cohens_kappa_ordinal', 0):.4f})"
+        )
+    else:
+        print("⚠️ CẢNH BÁO: Thiếu Consensus Audit hoặc Cohen's Kappa.")
+
+    if data.get("position_bias", {}).get("sample_size", 0) >= 50:
+        print(
+            "✅ Đã tìm thấy Position Bias Calibration "
+            f"(avg delta: {data['position_bias'].get('avg_bias_delta', 0):.4f})"
+        )
+    else:
+        print("⚠️ CẢNH BÁO: Thiếu Position Bias Calibration cho >= 50 cases.")
+
+    if data.get("red_team", {}).get("total", 0) >= 5:
+        print(
+            "✅ Đã tìm thấy Red Team Audit "
+            f"({data['red_team']['total']} cases, pass rate: {data['red_team'].get('pass_rate', 0)*100:.1f}%)"
+        )
+    else:
+        print("⚠️ CẢNH BÁO: Thiếu Red Team Audit.")
+
     if data["metadata"].get("version"):
         print(f"✅ Đã tìm thấy thông tin phiên bản Agent (Regression Mode)")
+
+    if data.get("regression", {}).get("gate", {}).get("decision"):
+        print(f"✅ Release Gate: {data['regression']['gate']['decision']}")
+    else:
+        print("⚠️ CẢNH BÁO: Thiếu Regression Release Gate.")
 
     print("\n🚀 Bài lab đã sẵn sàng để chấm điểm!")
 

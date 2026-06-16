@@ -2,26 +2,30 @@
 
 ## 1. Tổng quan Benchmark
 - **Tổng số cases:** 55
-- **Tỉ lệ Pass/Fail:** 54/1, pass rate 98.18%
-- **Điểm LLM-Judge trung bình:** 4.3504 / 5.0
+- **Tỉ lệ Pass/Fail:** 55/0, pass rate 100.00%
+- **Điểm LLM-Judge trung bình:** 4.3909 / 5.0
 - **Retrieval:** Hit Rate 96.36%, MRR 95.15%
 - **RAGAS-style:** Faithfulness 95.90%, Relevancy 97.82%
-- **Multi-Judge:** Agreement Rate 85.91%, gồm lexical accuracy judge và grounding/safety judge
-- **Performance:** Async benchmark chạy 55 cases trong 0.1954s, latency trung bình 0.0298s/case
+- **Multi-Judge:** Agreement Rate 99.09%, chạy real API với `gpt-4o-mini` và `gpt-4.1-mini`. Claude adapter cũng có sẵn, nhưng lần chạy này dùng OpenAI fallback vì Anthropic billing không khả dụng.
+- **Consensus audit:** 1/55 cases cần conflict resolution, average score spread 0.3273, Cohen's Kappa bucketed = 0.4602, weighted ordinal Kappa = 0.5319.
+- **Position Bias:** deterministic A/B swap proxy trên 55 cases, average bias delta 0.2326, max bias delta 0.4462.
+- **Red Teaming:** 5 hard/adversarial cases gồm prompt injection, goal hijacking, out-of-context, ambiguous và conflicting assumption; bộ red-team phá vỡ V1 ở `case_055_case_red_005`, còn V2 pass 5/5 sau tối ưu.
+- **Performance:** Async benchmark chạy 55 cases trong 107.5373s wall-clock khi gọi real model judges, latency agent trung bình 0.0294s/case, đạt yêu cầu < 2 phút.
 - **Cost:** 5,470 tokens, ước tính 0.00098460 USD, tức khoảng 0.0000179 USD/case
-- **Regression Gate:** APPROVE_RELEASE. V2 tăng +1.9075 điểm so với V1, hit rate tăng +1.81%, latency giảm 0.0219s/case.
+- **Regression Gate:** APPROVE_RELEASE. V2 tăng +2.6091 điểm so với V1, hit rate tăng +1.81%, latency giảm 0.0230s/case.
 
 ## 2. Liên hệ Retrieval Quality và Answer Quality
-Retrieval là tầng quyết định agent có đủ bằng chứng để trả lời hay không. Khi `hit_rate` và `mrr` cao, expected document thường xuất hiện trong top results và ở vị trí đầu, giúp answer có nhiều token trùng với ground truth hơn. Trong benchmark này, V2 có Hit Rate 96.36% và MRR 95.15%, kéo faithfulness lên 95.90%. Các case fail còn lại chủ yếu nằm ở truy vấn mơ hồ hoặc giả định sai, nơi vấn đề không chỉ là lấy đúng tài liệu mà còn là policy trả lời: hỏi lại, từ chối hallucination, hoặc giải thích điều kiện.
+Retrieval là tầng quyết định agent có đủ bằng chứng để trả lời hay không. Khi `hit_rate` và `mrr` cao, expected document thường xuất hiện trong top results và ở vị trí đầu, giúp answer có nhiều token trùng với ground truth hơn. Trong benchmark này, V2 có Hit Rate 96.36% và MRR 95.15%, kéo faithfulness lên 95.90% và pass rate lên 100%. Các điểm yếu còn lại nằm ở truy vấn mơ hồ hoặc giả định sai, nơi vấn đề không chỉ là lấy đúng tài liệu mà còn là policy trả lời: hỏi lại, từ chối hallucination, hoặc giải thích điều kiện.
 
 ## 3. Phân nhóm lỗi (Failure Clustering)
 | Nhóm lỗi | Số lượng | Dấu hiệu | Nguyên nhân dự kiến |
 |----------|----------|----------|---------------------|
-| Ambiguous Query | 1 | Agent trả lời quá chung hoặc hỏi lại chưa đủ cụ thể | Query thiếu chủ thể như "nó", cần clarify slot |
+| Ambiguous Query | 1 | Agent xử lý bằng câu hỏi làm rõ nhưng retrieval không lấy được `doc_red_team` | Query thiếu chủ thể như "nó", cần clarify slot và retrieval fallback |
 | Retrieval Miss / Low Rank | 2 | Expected ID không nằm top-3 hoặc rơi xuống rank thấp | Lexical scorer chưa có synonym expansion |
-| Judge Disagreement | 8 | Hai judge lệch hơn 1 điểm nhưng vẫn được hòa giải | Accuracy judge ưu tiên overlap, grounding judge phạt token ngoài ground truth |
+| Judge Disagreement | 1 | Hai judge lệch hơn 1 điểm nhưng vẫn được hòa giải bằng conservative average | Real judges có rubric khác nhau ở case mơ hồ/không đầy đủ |
 | Hard Prompt Safety | 0 critical | Prompt injection được chặn | Rule-based safe behavior hoạt động ổn |
-| Cost/Latency Risk | 0 | Không vượt ngưỡng | Async batch và offline deterministic judge đủ nhanh |
+| Cost/Latency Risk | 0 | Không vượt ngưỡng | Async batch giữ real-model benchmark dưới 2 phút |
+| Red-Team Break | 1 trên V1, 0 trên V2 | Conflicting-assumption case phá baseline nhưng được V2 cải thiện đủ để pass | Regression loop đã giảm lỗi nhưng vẫn cần reranker/contradiction handling |
 
 ## 4. Phân tích 5 Whys
 
@@ -48,6 +52,14 @@ Retrieval là tầng quyết định agent có đủ bằng chứng để trả 
 4. **Why 3:** Answer có câu dẫn như "Dựa trên context truy xuất được", tạo token không xuất hiện trong expected answer.
 5. **Why 4:** Rubric chưa tách phần style/tone khỏi phần factual support.
 6. **Root Cause:** Calibration giữa hai judge cần thêm normalization và examples để phân biệt wording khác với lỗi factual.
+
+### Case #4: Red-team conflicting assumption phá vỡ baseline
+1. **Symptom:** `case_055_case_red_005` phá V1 nhưng V2 đã pass dưới real multi-judge.
+2. **Why 1:** Baseline trả lời quá chung và không bác bỏ giả định "lỗi chắc chắn do judge sai".
+3. **Why 2:** V1 generator chỉ nói cần kiểm tra thêm, thiếu evidence cụ thể từ retrieval/failure-analysis docs.
+4. **Why 3:** Retrieval có thể lấy evidence đúng nhưng generation policy chưa buộc phải phản biện assumption sai.
+5. **Why 4:** Bộ test hard yêu cầu kết hợp retrieval metrics, faithfulness, relevancy và prompting trước khi kết luận judge sai.
+6. **Root Cause:** Baseline thiếu contradiction handling; V2 cải thiện bằng grounded response, nhưng roadmap vẫn cần reranker ưu tiên evidence phản biện giả định.
 
 ## 5. Regression Gate
 Gate tự động dùng 5 điều kiện:

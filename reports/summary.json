@@ -2,44 +2,114 @@
   "metadata": {
     "version": "Agent_V2_Optimized",
     "total": 55,
-    "timestamp": "2026-06-16 15:20:25",
+    "timestamp": "2026-06-16 16:36:11",
     "batching": "asyncio.gather with bounded batches"
   },
   "metrics": {
-    "avg_score": 4.3504,
-    "pass_rate": 0.9818,
+    "avg_score": 4.3909,
+    "pass_rate": 1.0,
     "hit_rate": 0.9636,
     "mrr": 0.9515,
     "faithfulness": 0.959,
     "relevancy": 0.9782,
-    "agreement_rate": 0.8591,
-    "avg_latency_seconds": 0.0324,
-    "wall_clock_seconds": 41.3919,
+    "agreement_rate": 0.9909,
+    "avg_latency_seconds": 0.0294,
+    "wall_clock_seconds": 107.5373,
     "total_tokens": 5470,
     "estimated_cost_usd": 0.0009846,
     "cost_per_case_usd": 1.79e-05
+  },
+  "judge_consensus": {
+    "configured_judges": [
+      "gpt-4.1-mini",
+      "gpt-4o-mini"
+    ],
+    "judge_mode_counts": {
+      "real_api": 55
+    },
+    "judge_path_note": "Preferred path is OpenAI + Anthropic. If Anthropic is unavailable, the engine uses gpt-4o-mini + gpt-4.1-mini so every case still has two real model-judge scores.",
+    "conflict_cases": 1,
+    "conflict_rate": 0.0182,
+    "avg_score_spread": 0.3273,
+    "cohens_kappa_bucketed": 0.4602,
+    "weighted_cohens_kappa_ordinal": 0.5319,
+    "kappa_bucket_definition": "Scores are bucketed as excellent/good/partial/poor before Cohen's Kappa."
+  },
+  "position_bias": {
+    "sample_size": 55,
+    "avg_bias_delta": 0.2326,
+    "max_bias_delta": 0.4462,
+    "method": "Lexical A/B swap proxy used for deterministic offline calibration."
+  },
+  "red_team": {
+    "total": 5,
+    "pass_rate": 1.0,
+    "failure_cases": [],
+    "case_types": [
+      "ambiguous",
+      "conflicting-assumption",
+      "goal-hijacking",
+      "out-of-context",
+      "prompt-injection"
+    ]
   },
   "regression": {
     "baseline": {
       "metadata": {
         "version": "Agent_V1_Base",
         "total": 55,
-        "timestamp": "2026-06-16 15:19:43",
+        "timestamp": "2026-06-16 16:34:24",
         "batching": "asyncio.gather with bounded batches"
       },
       "metrics": {
-        "avg_score": 2.4429,
-        "pass_rate": 0.0909,
+        "avg_score": 1.7818,
+        "pass_rate": 0.0727,
         "hit_rate": 0.9455,
         "mrr": 0.9455,
         "faithfulness": 0.4491,
         "relevancy": 0.2938,
-        "agreement_rate": 0.8091,
-        "avg_latency_seconds": 0.0508,
-        "wall_clock_seconds": 45.0094,
+        "agreement_rate": 1.0,
+        "avg_latency_seconds": 0.0524,
+        "wall_clock_seconds": 100.855,
         "total_tokens": 3402,
         "estimated_cost_usd": 0.0008505,
         "cost_per_case_usd": 1.546e-05
+      },
+      "judge_consensus": {
+        "configured_judges": [
+          "gpt-4.1-mini",
+          "gpt-4o-mini"
+        ],
+        "judge_mode_counts": {
+          "real_api": 55
+        },
+        "judge_path_note": "Preferred path is OpenAI + Anthropic. If Anthropic is unavailable, the engine uses gpt-4o-mini + gpt-4.1-mini so every case still has two real model-judge scores.",
+        "conflict_cases": 0,
+        "conflict_rate": 0.0,
+        "avg_score_spread": 0.9091,
+        "cohens_kappa_bucketed": 0.7624,
+        "weighted_cohens_kappa_ordinal": 0.6254,
+        "kappa_bucket_definition": "Scores are bucketed as excellent/good/partial/poor before Cohen's Kappa."
+      },
+      "position_bias": {
+        "sample_size": 55,
+        "avg_bias_delta": 0.0569,
+        "max_bias_delta": 0.1232,
+        "method": "Lexical A/B swap proxy used for deterministic offline calibration."
+      },
+      "red_team": {
+        "total": 5,
+        "pass_rate": 0.8,
+        "failure_cases": [
+          "case_055_case_red_005"
+        ],
+        "case_types": [
+          "ambiguous",
+          "conflicting-assumption",
+          "goal-hijacking",
+          "out-of-context",
+          "prompt-injection"
+        ]
       }
     },
     "gate": {
@@ -52,11 +122,11 @@
         "cost_threshold": true
       },
       "deltas": {
-        "avg_score": 1.9075,
+        "avg_score": 2.6091,
         "hit_rate": 0.0181,
         "mrr": 0.006,
         "cost": 0.0001341,
-        "latency": -0.0184
+        "latency": -0.023
       }
     }
   }
