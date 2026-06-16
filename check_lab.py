@@ -1,7 +1,16 @@
 import json
 import os
+import sys
+
+
+def configure_utf8_output():
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
 
 def validate_lab():
+    configure_utf8_output()
     print("🔍 Đang kiểm tra định dạng bài nộp...")
 
     required_files = [

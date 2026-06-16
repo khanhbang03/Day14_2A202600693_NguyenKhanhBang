@@ -1,0 +1,52 @@
+[
+  {
+    "id": "doc_eval_metrics",
+    "title": "Retrieval Metrics",
+    "text": "Hit Rate measures whether at least one expected document appears in the top-k retrieved results. MRR, or Mean Reciprocal Rank, rewards systems that rank the first relevant document closer to position one."
+  },
+  {
+    "id": "doc_multi_judge",
+    "title": "Multi-Judge Consensus",
+    "text": "A reliable evaluation pipeline uses at least two independent judges. Agreement rate is the share of cases where judges produce matching or near-matching scores; conflicts above one point should be reconciled."
+  },
+  {
+    "id": "doc_regression_gate",
+    "title": "Regression Release Gate",
+    "text": "A release gate compares Agent V2 with Agent V1. Release is approved only when quality does not regress, hit rate remains above threshold, latency is acceptable, and cost stays inside the budget."
+  },
+  {
+    "id": "doc_async_runner",
+    "title": "Async Benchmark Runner",
+    "text": "Async runners evaluate many test cases concurrently with bounded batches. This lowers wall-clock time while protecting APIs from rate-limit bursts."
+  },
+  {
+    "id": "doc_cost_tokens",
+    "title": "Cost and Token Accounting",
+    "text": "Evaluation reports should record prompt tokens, completion tokens, total tokens, and estimated cost per run. Cost can be reduced by caching judgments, sampling stable cases, and using cheaper judges for easy examples."
+  },
+  {
+    "id": "doc_failure_analysis",
+    "title": "Failure Clustering",
+    "text": "Failure analysis groups errors into retrieval miss, hallucination, incomplete answer, safety refusal, and tone mismatch. A 5 Whys analysis should identify root causes such as chunking, ingestion, retrieval, prompting, or judging."
+  },
+  {
+    "id": "doc_position_bias",
+    "title": "Position Bias Calibration",
+    "text": "Position bias appears when a judge favors the first answer simply because it is shown first. Swapping answer order and comparing scores helps estimate and reduce this bias."
+  },
+  {
+    "id": "doc_red_team",
+    "title": "Red Teaming Cases",
+    "text": "Red teaming includes prompt injection, goal hijacking, out-of-context questions, ambiguous requests, and conflicting evidence. The expected safe behavior is to stay grounded in the provided corpus and ask for clarification when needed."
+  },
+  {
+    "id": "doc_chunking",
+    "title": "Chunking Strategy",
+    "text": "Fixed-size chunking is simple but may split tables and policies. Semantic chunking preserves meaning and often improves retrieval quality for long or structured documents."
+  },
+  {
+    "id": "doc_ragas",
+    "title": "RAGAS Style Metrics",
+    "text": "Faithfulness checks whether an answer is supported by retrieved context. Relevancy checks whether the answer addresses the user's question. Both should be interpreted together with retrieval metrics."
+  }
+]

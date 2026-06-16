@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "version": "Agent_V2_Optimized",
+    "total": 55,
+    "timestamp": "2026-06-16 15:20:25",
+    "batching": "asyncio.gather with bounded batches"
+  },
+  "metrics": {
+    "avg_score": 4.3504,
+    "pass_rate": 0.9818,
+    "hit_rate": 0.9636,
+    "mrr": 0.9515,
+    "faithfulness": 0.959,
+    "relevancy": 0.9782,
+    "agreement_rate": 0.8591,
+    "avg_latency_seconds": 0.0324,
+    "wall_clock_seconds": 41.3919,
+    "total_tokens": 5470,
+    "estimated_cost_usd": 0.0009846,
+    "cost_per_case_usd": 1.79e-05
+  },
+  "regression": {
+    "baseline": {
+      "metadata": {
+        "version": "Agent_V1_Base",
+        "total": 55,
+        "timestamp": "2026-06-16 15:19:43",
+        "batching": "asyncio.gather with bounded batches"
+      },
+      "metrics": {
+        "avg_score": 2.4429,
+        "pass_rate": 0.0909,
+        "hit_rate": 0.9455,
+        "mrr": 0.9455,
+        "faithfulness": 0.4491,
+        "relevancy": 0.2938,
+        "agreement_rate": 0.8091,
+        "avg_latency_seconds": 0.0508,
+        "wall_clock_seconds": 45.0094,
+        "total_tokens": 3402,
+        "estimated_cost_usd": 0.0008505,
+        "cost_per_case_usd": 1.546e-05
+      }
+    },
+    "gate": {
+      "decision": "APPROVE_RELEASE",
+      "checks": {
+        "quality_non_regression": true,
+        "minimum_quality": true,
+        "retrieval_threshold": true,
+        "latency_threshold": true,
+        "cost_threshold": true
+      },
+      "deltas": {
+        "avg_score": 1.9075,
+        "hit_rate": 0.0181,
+        "mrr": 0.006,
+        "cost": 0.0001341,
+        "latency": -0.0184
+      }
+    }
+  }
+}
