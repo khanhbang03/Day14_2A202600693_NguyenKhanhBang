@@ -23,8 +23,6 @@ Em phụ trách hoàn thiện pipeline đánh giá end-to-end cho Lab Day 14:
 ## 3. Problem Solving
 Vấn đề lớn nhất là làm bài chạy được trong môi trường không có API key nhưng vẫn thể hiện kiến trúc production. Cách giải quyết là dùng deterministic offline judge và agent, nhưng vẫn giữ đầy đủ interface của hệ thống thật: async runner, retrieval IDs, token/cost accounting, multi-judge consensus và release gate.
 
-Một vấn đề khác là Windows console không in được emoji trong `check_lab.py`, gây lỗi `UnicodeEncodeError`. Em xử lý bằng cách đổi output checker sang ASCII text để script kiểm tra định dạng chạy ổn trên máy chấm.
-
 ## 4. Kết quả
 - V2 avg score: 4.3504 / 5.0
 - V2 Hit Rate: 96.36%
