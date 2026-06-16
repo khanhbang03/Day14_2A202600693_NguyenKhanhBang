@@ -71,7 +71,58 @@ Gate tự động dùng 5 điều kiện:
 
 Kết quả V2 đạt cả 5 điều kiện, nên quyết định là **APPROVE_RELEASE**.
 
-## 6. Kế hoạch cải tiến
+## 6. Báo cáo Cost & Token Usage
+
+### 6.1. Tổng quan chi phí
+| Phiên bản | Cases | Prompt tokens | Completion tokens | Total tokens | Estimated cost | Cost/case | Avg tokens/case |
+|----------|------:|--------------:|------------------:|-------------:|---------------:|----------:|----------------:|
+| V1 Baseline | 55 | 2,326 | 1,076 | 3,402 | $0.00085050 | $0.00001546 | 61.85 |
+| V2 Optimized | 55 | 2,996 | 2,474 | 5,470 | $0.00098460 | $0.00001790 | 99.45 |
+
+V2 dùng nhiều hơn **2,068 tokens** so với V1, tương đương tăng **60.79% token volume**. Tuy nhiên cost chỉ tăng **$0.00013410** vì V2 dùng unit price thấp hơn trong metadata agent (`$0.00018/1K tokens` so với `$0.00025/1K tokens` của V1). Đổi lại, V2 tăng avg score từ **1.7818** lên **4.3909** và pass rate từ **7.27%** lên **100.00%**.
+
+### 6.2. Phân rã token V2
+| Thành phần | Tokens | Tỉ lệ |
+|-----------|-------:|------:|
+| Prompt/context tokens | 2,996 | 54.77% |
+| Completion/answer tokens | 2,474 | 45.23% |
+| Tổng | 5,470 | 100.00% |
+
+Token tăng chủ yếu do V2 trả lời đầy đủ hơn và đưa thêm context liên quan vào answer. Đây là trade-off có lợi trong benchmark này: chi phí tăng nhẹ nhưng chất lượng tăng mạnh, retrieval giữ ổn định, và release gate vẫn đạt cost threshold.
+
+### 6.3. Biên chi phí theo case
+| Phiên bản | Min tokens/case | Max tokens/case | Min cost/case | Max cost/case |
+|----------|----------------:|----------------:|--------------:|--------------:|
+| V1 Baseline | 20 | 81 | $0.00000500 | $0.00002025 |
+| V2 Optimized | 20 | 144 | $0.00000360 | $0.00002592 |
+
+Các case có chi phí cao nhất thường là câu hỏi grounded/hard cần nhiều retrieved context. Các case out-of-context hoặc ambiguous có token thấp vì agent trả lời ngắn và không kéo nhiều tài liệu.
+
+### 6.4. Red-team cost
+| Phiên bản | Red-team cases | Red-team tokens | Red-team cost | Avg red-team cost/case |
+|----------|---------------:|----------------:|--------------:|-----------------------:|
+| V1 Baseline | 5 | 238 | $0.00005950 | $0.00001190 |
+| V2 Optimized | 5 | 301 | $0.00005418 | $0.00001084 |
+
+Dù V2 dùng nhiều token hơn trên red-team cases, cost red-team lại thấp hơn V1 do unit price thấp hơn. V2 cũng đạt **5/5 red-team pass**, trong khi V1 bị phá ở `case_055_case_red_005`.
+
+### 6.5. ROI chất lượng trên chi phí
+- Delta cost V2 - V1: **+$0.00013410**.
+- Delta avg score V2 - V1: **+2.6091**.
+- Chi phí tăng cho mỗi 1 điểm avg score cải thiện: khoảng **$0.00005140**.
+- Cost threshold của release gate: **$0.01000000**.
+- Actual V2 cost: **$0.00098460**, chỉ dùng khoảng **9.85%** budget.
+
+Kết luận: V2 là lựa chọn hợp lý để release vì tăng mạnh quality với cost tăng rất nhỏ và vẫn thấp hơn nhiều so với ngân sách cho phép.
+
+### 6.6. Kế hoạch giảm ít nhất 30% chi phí eval
+1. **Cache judge results cho stable cases:** Các case synthetic-grounded lặp cấu trúc cao, có thể cache theo hash của question + answer + expected answer. Dự kiến giảm 25-40% judge calls khi rerun regression.
+2. **Tiered judging:** Dùng một judge rẻ cho easy cases; chỉ gọi judge thứ hai khi score nằm vùng biên hoặc `score_spread > 1.0`. Với run hiện tại chỉ 1/55 cases cần conflict resolution, strategy này có thể giảm mạnh calls thứ hai.
+3. **Context compaction:** Giới hạn answer builder chỉ đưa context thật cần thiết thay vì ghép nhiều document. Mục tiêu giảm 15-25% completion tokens ở các grounded cases dài.
+4. **Sample stable regression cases:** Luôn chạy 100% red-team/hard cases, nhưng sample 50-70% easy/definition cases trong smoke regression. Full benchmark vẫn chạy trước release chính thức.
+5. **Token budget guardrail:** Cảnh báo khi `tokens_used > 120` hoặc `cost_per_case > $0.000025`, vì đây là nhóm case dễ gây phình chi phí.
+
+## 7. Kế hoạch cải tiến
 - Thêm hybrid retrieval: lexical scorer hiện tại + vector embedding để tăng recall cho synonym và paraphrase.
 - Thêm reranking theo cross-encoder hoặc LLM-small judge cho top-5 context.
 - Chuẩn hóa prompt trả lời ambiguity: luôn hỏi rõ metric/version/dataset/pipeline trước khi kết luận.
